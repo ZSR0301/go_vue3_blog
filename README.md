@@ -72,13 +72,9 @@ func GenerateSecureToken(user string) string {
 ```
 容器化部署 (实验阶段)
 
-# 构建多服务镜像(开发中)
-docker build -f dockerbuild_testing/Dockerfile.wip -t blog-all-in-one .
+## 构建多服务镜像(开发中)
+## 目标：部署到Claw Cloud免费服务
 
-# 目标：部署到Claw Cloud免费服务
-
-
-# 目标：部署到Claw Cloud免费服务
 开发进度
 ✅ 已完成功能：
 
