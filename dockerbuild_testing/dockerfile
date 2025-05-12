@@ -1,0 +1,88 @@
+# 使用 Debian 基础镜像
+FROM debian:bookworm
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GO_VERSION=1.24.2
+ENV ELASTIC_VERSION=8.17.0
+ENV REDIS_VERSION=7:7.2.4-1
+ENV MYSQL_VERSION=9.3.0-1.el9
+
+# 第一阶段：安装系统依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    systemd \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装指定版本的 Go
+RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz -o go.tar.gz && \
+    tar -C /usr/local -xzf go.tar.gz && \
+    rm go.tar.gz && \
+    ln -s /usr/local/go/bin/go /usr/local/bin/go
+
+# 安装 Node.js 16.x
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y nodejs
+
+# 安装指定版本的 MySQL
+RUN curl -fsSL https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 | gpg --dearmor -o /usr/share/keyrings/mysql.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/mysql.gpg] https://repo.mysql.com/apt/debian bookworm mysql-9.3" > /etc/apt/sources.list.d/mysql.list && \
+    apt-get update && \
+    apt-get install -y mysql-community-server=${MYSQL_VERSION} && \
+    mkdir -p /var/run/mysqld && \
+    chown -R mysql:mysql /var/run/mysqld
+
+# 安装指定版本的 Redis
+RUN apt-get install -y redis-server=${REDIS_VERSION} && \
+    echo "bind 0.0.0.0" >> /etc/redis/redis.conf && \
+    echo "protected-mode no" >> /etc/redis/redis.conf
+
+# 安装指定版本的 Elasticsearch
+RUN curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" | tee /etc/apt/sources.list.d/elastic-8.x.list && \
+    apt-get update && \
+    apt-get install -y elasticsearch=${ELASTIC_VERSION} && \
+    echo "network.host: 0.0.0.0" >> /etc/elasticsearch/elasticsearch.yml && \
+    echo "discovery.type: single-node" >> /etc/elasticsearch/elasticsearch.yml && \
+    echo "xpack.security.enabled: false" >> /etc/elasticsearch/elasticsearch.yml
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制项目文件
+COPY . .
+
+# 构建 Go 后端
+RUN cd server && go build -o ../main .
+
+# 构建 Vue 前端
+RUN cd web && npm install && npm run build
+
+# 初始化 MySQL
+RUN mkdir -p /var/lib/mysql && \
+    chown -R mysql:mysql /var/lib/mysql && \
+    service mysql start && \
+    mysql -e "CREATE DATABASE IF NOT EXISTS appdb; \
+              CREATE USER 'appuser'@'%' IDENTIFIED BY 'apppass'; \
+              GRANT ALL PRIVILEGES ON appdb.* TO 'appuser'@'%'; \
+              FLUSH PRIVILEGES;"
+
+# 创建启动脚本
+RUN echo '#!/bin/bash\n\
+service mysql start\n\
+service redis-server start\n\
+service elasticsearch start\n\
+sleep 10\n\
+./main\n' > /start.sh && \
+    chmod +x /start.sh
+
+# 暴露端口
+EXPOSE 3000
+
+# 启动命令
+CMD ["/start.sh"]
