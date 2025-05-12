@@ -40,6 +40,14 @@ Vue3 + TypeScript开发
 
 主要依赖：
 
+缓存：redis
+
+数据库：mysql、sql语法、参数化查询
+
+认证：双token、jwt
+
+查询：elasticsearch
+
 UI框架：Element Plus
 
 编辑器：MdeditorV3
@@ -48,18 +56,27 @@ UI框架：Element Plus
 
 bash
 cd web && npm install && npm run dev
+
 加密模块 (session_create/)
-go
+
+
+
+
+```go linenums="1"
 // 基于SHA-256的会话令牌生成
 func GenerateSecureToken(user string) string {
     h := sha256.New()
     h.Write([]byte(user + salt))
     return hex.EncodeToString(h.Sum(nil))
 }
+```
 容器化部署 (实验阶段)
-bash
+
 # 构建多服务镜像(开发中)
 docker build -f dockerbuild_testing/Dockerfile.wip -t blog-all-in-one .
+
+# 目标：部署到Claw Cloud免费服务
+
 
 # 目标：部署到Claw Cloud免费服务
 开发进度
